@@ -1,6 +1,9 @@
 using UnityEngine;
 using UnityEngine.UI;
 
+/// <summary>
+/// View for ghost cube (cube that is being dragged)
+/// </summary>
 public sealed class GhostCubeView : MonoBehaviour
 {
     public RectTransform Rect => (RectTransform)transform;

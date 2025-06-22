@@ -1,8 +1,11 @@
 using UnityEngine;
-using System.Collections;
+using Cysharp.Threading.Tasks;
 using VContainer;
 
-public class ApplicationLifecycleNotifier : MonoBehaviour
+/// <summary>
+/// Notifier for application lifecycle events
+/// </summary>
+public sealed class ApplicationLifecycleNotifier : MonoBehaviour
 {
     private AutoSaveService _autoSaveService;
 
@@ -11,22 +14,21 @@ public class ApplicationLifecycleNotifier : MonoBehaviour
     {
         _autoSaveService = autoSaveService;
     }
-
+    
+    #region Lifecycle
     private void Start()
     {
-        // Загружаем с задержкой на один кадр для инициализации UI
-        StartCoroutine(LoadGameDelayed());
+        LoadGameDelayed().Forget();
     }
 
-    private IEnumerator LoadGameDelayed()
+    private async UniTaskVoid LoadGameDelayed()
     {
-        yield return null; // Ждём один кадр
+        await UniTask.NextFrame(this.GetCancellationTokenOnDestroy());
         _autoSaveService?.LoadGame();
     }
 
     private void OnApplicationQuit()
     {
-        // Это срабатывает при остановке в редакторе
         _autoSaveService?.SaveGame();
     }
 
@@ -50,10 +52,13 @@ public class ApplicationLifecycleNotifier : MonoBehaviour
     {
         _autoSaveService?.SaveGame();
     }
+    #endregion
 
+    #region Debug
     [ContextMenu("ClearSave")]
     private void ClearSave()
     {
         _autoSaveService?.ClearSave();
     }
+    #endregion
 } 

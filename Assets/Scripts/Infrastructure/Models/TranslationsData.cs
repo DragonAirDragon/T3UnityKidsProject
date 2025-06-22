@@ -1,7 +1,11 @@
+using System;
 using System.Collections.Generic;
 using Sirenix.OdinInspector;
 
-[System.Serializable]
+/// <summary>
+/// Serializable class for translations data
+/// </summary>
+[Serializable]
 public class TranslationsDataCollection
 {
     [DictionaryDrawerSettings(KeyLabel = "Key", ValueLabel = "Translation")]

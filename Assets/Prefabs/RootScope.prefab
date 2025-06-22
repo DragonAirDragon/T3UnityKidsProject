@@ -49,4 +49,6 @@ MonoBehaviour:
   autoRun: 1
   autoInjectGameObjects: []
   _gameConfig: {fileID: 11400000, guid: e1a3397c852eebf408768baa3daa531c, type: 2}
+  _inventoryConfig: {fileID: 11400000, guid: 5fdb7308111b7ca429ce6c04773c2c51, type: 2}
+  _animationsConfig: {fileID: 11400000, guid: acb646550b64702499efa1784beb4aba, type: 2}
   _localizationConfig: {fileID: 11400000, guid: cad7655aa97d52f4d8297494c1817157, type: 2}

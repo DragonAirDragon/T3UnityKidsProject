@@ -1,52 +1,47 @@
-using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
 
+/// <summary>
+/// Effect cube unit
+/// </summary>
 public class CubeEffect : MonoBehaviour
 {
+    #region Fields and Dependencies
     [SerializeField] private Image _cubeImage;
-    [SerializeField] private float _animationDuration = 0.5f;
-    [SerializeField] private float _fallDistance = 200f;
     [SerializeField] private RectTransform _rectTransform;
+    #endregion
 
+    #region Lifecycle
     private void OnDestroy()
     {
-        // Останавливаем все анимации, связанные с этим объектом
         transform.DOKill();
         _cubeImage?.DOKill();
         _rectTransform?.DOKill();
     }
-    
-    /// <summary>
-    /// Настраивает цвет и позицию эффекта
-    /// </summary>
     public void Setup(Sprite cubeSprite, Vector2 position)
     {
         _cubeImage.sprite = cubeSprite;
         _rectTransform.anchoredPosition = position;
         
-        // Сбрасываем прозрачность и масштаб
+        // Reset transparency and scale
         var color = _cubeImage.color;
         color.a = 1f;
         _cubeImage.color = color;
         transform.localScale = Vector3.one;
     }
-    
-    /// <summary>
-    /// Простая анимация исчезновения (Dissolve)
-    /// </summary>
-    public void PlayDissolveEffect()
+    #endregion
+
+    #region Effects
+    public void PlayDissolveEffect(float animationDuration)
     {
         var sequence = DOTween.Sequence();
         
-        // Анимация исчезновения
-        sequence.Append(_cubeImage.DOFade(0f, _animationDuration).SetEase(Ease.InQuart));
+        sequence.Append(_cubeImage.DOFade(0f, animationDuration).SetEase(Ease.InQuart));
         
-        // Небольшое уменьшение размера для эффекта растворения
-        sequence.Join(transform.DOScale(0.8f, _animationDuration).SetEase(Ease.InQuart));
+        // Slight size reduction for dissolve effect
+        sequence.Join(transform.DOScale(0.8f, animationDuration).SetEase(Ease.InQuart));
         
-        // Уничтожение объекта после анимации
         sequence.OnComplete(() => {
             if (this != null && gameObject != null)
             {
@@ -54,25 +49,19 @@ public class CubeEffect : MonoBehaviour
             }
         });
         
-        // Привязываем последовательность к объекту для автоматической очистки
         sequence.SetTarget(transform);
     }
-    
-    /// <summary>
-    /// Анимация исчезновения с падением
-    /// </summary>
-    public void PlayDissolveEffectWithFall(EffectDirection direction)
+    public void PlayDissolveEffectWithFall(EffectDirection direction, float animationDuration, float fallDistance)
     {
         var sequence = DOTween.Sequence();
         
         Vector2 fallDirection = GetFallDirection(direction);
-        Vector2 targetPosition = _rectTransform.anchoredPosition + fallDirection * _fallDistance;
+        Vector2 targetPosition = _rectTransform.anchoredPosition + fallDirection * fallDistance;
         
-        // Анимация падения
-        sequence.Append(_rectTransform.DOAnchorPos(targetPosition, _animationDuration).SetEase(Ease.InQuart));
+        sequence.Append(_rectTransform.DOAnchorPos(targetPosition, animationDuration).SetEase(Ease.InQuart));
         
-        // Анимация исчезновения (начинается через 30% времени)
-        sequence.Insert(_animationDuration * 0.3f, _cubeImage.DOFade(0f, _animationDuration * 0.7f).SetEase(Ease.InQuart));
+        // Fade animation starts at 30% of the time
+        sequence.Insert(animationDuration * 0.3f, _cubeImage.DOFade(0f, animationDuration * 0.7f).SetEase(Ease.InQuart));
         
         
         float rotation = 0f;
@@ -85,10 +74,9 @@ public class CubeEffect : MonoBehaviour
             rotation = Random.Range(100f, 180f);
         }
 
-        // Небольшое вращение для реалистичности падения
-        sequence.Join(transform.DORotate(new Vector3(0, 0, rotation), _animationDuration).SetEase(Ease.InQuart));
+        // Small rotation for realistic falling
+        sequence.Join(transform.DORotate(new Vector3(0, 0, rotation), animationDuration).SetEase(Ease.InQuart));
         
-        // Уничтожение объекта после анимации
         sequence.OnComplete(() => {
             if (this != null && gameObject != null)
             {
@@ -96,25 +84,20 @@ public class CubeEffect : MonoBehaviour
             }
         });
         
-        // Привязываем последовательность к объекту для автоматической очистки
         sequence.SetTarget(transform);
     }
     
-    /// <summary>
-    /// Анимация только падения без исчезновения
-    /// </summary>
     public void PlayFallEffect(EffectDirection direction, float fallDistance, float animationDuration)
     {
         var sequence = DOTween.Sequence();
         Vector2 fallDirection = GetFallDirection(direction);
         Vector2 targetPosition = _rectTransform.anchoredPosition + fallDirection * fallDistance;
-        // Анимация падения
-        sequence.Append(_rectTransform.DOAnchorPos(targetPosition, _animationDuration).SetEase(Ease.InCubic));
-        // Вращение при падении
-        sequence.Join(transform.DORotate(new Vector3(0, 0, Random.Range(-180f, 180f)), _animationDuration).SetEase(Ease.InCubic));
-        // Исчезновение только в самом конце
+        
+        sequence.Append(_rectTransform.DOAnchorPos(targetPosition, animationDuration).SetEase(Ease.InCubic));
+        sequence.Join(transform.DORotate(new Vector3(0, 0, Random.Range(-180f, 180f)), animationDuration).SetEase(Ease.InCubic));
+        // Fade out only at the very end
         sequence.Append(_cubeImage.DOFade(0f, 0.2f));
-        // Уничтожение объекта после анимации
+        
         sequence.OnComplete(() => {
             if (this != null && gameObject != null)
             {
@@ -122,13 +105,9 @@ public class CubeEffect : MonoBehaviour
             }
         });
         
-        // Привязываем последовательность к объекту для автоматической очистки
         sequence.SetTarget(transform);
     }
     
-    /// <summary>
-    /// Конвертирует направление эффекта в вектор направления
-    /// </summary>
     private Vector2 GetFallDirection(EffectDirection direction)
     {
         return direction switch
@@ -141,4 +120,5 @@ public class CubeEffect : MonoBehaviour
             _ => Vector2.down
         };
     }
+    #endregion
 }

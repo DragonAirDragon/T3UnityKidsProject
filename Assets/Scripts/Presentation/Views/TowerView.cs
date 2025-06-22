@@ -1,89 +1,183 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using VContainer;
 
+/// <summary>
+/// View for tower (container for tower cubes)
+/// </summary>
 public class TowerView : MonoBehaviour
 {
-    [SerializeField] private Transform _cubesContainer;
+    #region Fields and Dependencies
     
+    [SerializeField] private Transform _cubesContainer;
+    [SerializeField] private RectTransform _cubesContainerRect;
     private TowerService _towerService;
     private ICubeFactory _cubeFactory;
-    private List<GameObject> _spawnedCubes = new();
-
+    private Queue<TowerCubeView> _cubePool = new Queue<TowerCubeView>();
+    private List<TowerCubeView> _activeCubes = new List<TowerCubeView>();
+    private ICubeDataContainer _cubeDataContainer;
+    private const int INITIAL_POOL_SIZE = 20;
+    
+    #endregion
+    
+    #region Lifecycle
+    
     [Inject]
-    public void Construct(TowerService towerService, ICubeFactory cubeFactory)
+    public void Construct(TowerService towerService, ICubeFactory cubeFactory, ICubeDataContainer cubeDataContainer)
     {
         _towerService = towerService;
         _cubeFactory = cubeFactory;
+        _cubeDataContainer = cubeDataContainer;
     }
 
     private void Start()
     {
-        
-        // Подписываемся на события изменения башни
-        _towerService.OnListChanged += OnTowerChanged;
-        Debug.Log("TowerView: Подписался на события TowerService");
-        
-        // Отображаем текущее состояние башни
-        OnTowerChanged(_towerService.Cubes as List<CubeData>);
+        if (_cubeFactory != null && _towerService != null)
+        {
+            InitializePool();
+            _cubeDataContainer.OnDataChanged += OnTowerChanged;
+            _towerService.OnCubesNeedDestructionEffect += OnCubesNeedDestructionEffect;
+            OnTowerChanged(_towerService.Cubes as List<CubeData>);
+        }
+        else
+        {
+            Debug.LogError("TowerView: _cubeFactory or _towerService not initialized! Check DI container.");
+        }
     }
+
 
     private void OnDestroy()
     {
-        // Отписываемся от событий
         if (_towerService != null)
         {
-            _towerService.OnListChanged -= OnTowerChanged;
+            _cubeDataContainer.OnDataChanged -= OnTowerChanged;
+            _towerService.OnCubesNeedDestructionEffect -= OnCubesNeedDestructionEffect;
         }
     }
+    
+    #endregion
+    
+    #region Initialization
+
+    private void InitializePool()
+    {
+        if (_cubeFactory == null)
+        {
+            Debug.LogError("TowerView.InitializePool(): _cubeFactory is null!");
+            return;
+        }
+        
+        for (int i = 0; i < INITIAL_POOL_SIZE; i++)
+        {
+            var cubeData = new CubeData { color = 0, offset = 0f };
+            GameObject cube = _cubeFactory.CreateTowerCube(cubeData, _cubesContainer);
+            cube.SetActive(false);
+            _cubePool.Enqueue(cube.GetComponent<TowerCubeView>());
+        }
+    }
+    
+    #endregion
+    
+    #region Event Handling
 
     private void OnTowerChanged(List<CubeData> cubes)
     {
-        Debug.Log($"TowerView: Обновляю визуализацию башни. Количество кубов: {cubes.Count}");
+        // Simple and reliable logic
+        ClearAllCubes();
         
-        // Удаляем все текущие кубы
-        ClearSpawnedCubes();
-        
-        // Создаем новые кубы на основе данных
+        // Create all cubes with correct indices
         for (int i = 0; i < cubes.Count; i++)
         {
-            CubeData? lastCube = i > 0 ? cubes[i - 1] : null;
-            SpawnCube(cubes[i], lastCube);
+            CreateSingleCube(cubes[i], i);
         }
     }
 
-    private void SpawnCube(CubeData cubeData, CubeData? lastCubeData)
+    private void ClearAllCubes()
     {
-        // Создаем новый куб через фабрику
-        GameObject cubeObject = _cubeFactory.CreateTowerCube(cubeData, _cubesContainer);
-        _spawnedCubes.Add(cubeObject);
-        
-        // Получаем позицию от сервиса и применяем её
-        RectTransform cubesContainerRect = _cubesContainer.GetComponent<RectTransform>();
-        Vector2 position = _towerService.GetCubePosition(cubeData, cubesContainerRect);
-        
-        RectTransform rectTransform = cubeObject.GetComponent<RectTransform>();
-        if (rectTransform != null)
+        while (_activeCubes.Count > 0)
         {
-            rectTransform.anchoredPosition = position;
+            ReturnCubeToPool(0);
         }
-        
-        //Debug.Log($"TowerView: Создан куб {cubeData.color} в позиции {position} (Order: {cubeData.order}, Offset: {cubeData.offset:F3})");
     }
-    private void ClearSpawnedCubes()
+
+    private void CreateSingleCube(CubeData cubeData, int cubeIndex)
     {
-        // Удаляем все созданные кубы
-        foreach (var cube in _spawnedCubes)
+        TowerCubeView cubeView = GetCubeFromPool();
+        _activeCubes.Add(cubeView);
+        
+        cubeView.RectTransform.anchoredPosition = _towerService.GetCubePosition(cubeData, _cubesContainerRect, cubeIndex);
+        cubeView.Setup(cubeData.color);
+        cubeView.SetCubeIndex(cubeIndex);
+        
+        // Animation ONLY for cubes with yOffset > 0 (new or falling cubes)
+        if (cubeData.yOffset > 0f)
         {
-            if (cube != null)
+            Vector2 actualCubeSize = _towerService.GetCubeSize();
+            cubeView.SetupGravityAnimation(cubeData.yOffset, actualCubeSize.y);
+        }
+    }
+
+    /// <summary>
+    /// Handles the event for playing destruction effects on cubes
+    /// </summary>
+    private void OnCubesNeedDestructionEffect(List<int> cubeIndices)
+    {
+        foreach (int cubeIndex in cubeIndices)
+        {
+            if (cubeIndex >= 0 && cubeIndex < _activeCubes.Count)
             {
-                Destroy(cube);
+                var cubeObject = _activeCubes[cubeIndex];
+                var towerCubeView = cubeObject.GetComponent<TowerCubeView>();
+                towerCubeView?.PlayDestructionEffect();
             }
         }
-        _spawnedCubes.Clear();
     }
-    // Методы для тестирования в редакторе
+    
+    #endregion
+    
+    #region Cube Management
+
+
+    
+    #endregion
+    
+    #region Object Pool Management
+
+    private TowerCubeView GetCubeFromPool()
+    {
+        TowerCubeView cube;
+        
+        if (_cubePool.Count > 0)
+        {
+            cube = _cubePool.Dequeue();
+        }
+        else
+        {
+            var cubeData = new CubeData { color = 0, offset = 0f };
+            GameObject cubeObject = _cubeFactory.CreateTowerCube(cubeData, _cubesContainer);
+            cube = cubeObject.GetComponent<TowerCubeView>();
+        }
+        
+        cube.gameObject.SetActive(true);
+        return cube;
+    }
+
+    private void ReturnCubeToPool(int index)
+    {
+        if (index >= 0 && index < _activeCubes.Count)
+        {
+            TowerCubeView cube = _activeCubes[index];
+            _activeCubes.RemoveAt(index);
+            
+            cube.gameObject.SetActive(false);
+            _cubePool.Enqueue(cube);
+        }
+    }
+    
+    #endregion
+    
+    #region Debug Methods
+
     [ContextMenu("Force Refresh Tower")]
     private void ForceRefreshTower()
     {
@@ -92,4 +186,6 @@ public class TowerView : MonoBehaviour
             OnTowerChanged(_towerService.Cubes as List<CubeData>);
         }
     }
+    
+    #endregion
 } 

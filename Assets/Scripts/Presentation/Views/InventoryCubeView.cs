@@ -3,23 +3,25 @@ using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using VContainer;
 
+/// <summary>
+/// View for inventory cube (cube that is in inventory)
+/// </summary>
 public class InventoryCubeView : MonoBehaviour, IDraggableCube,
     IBeginDragHandler, IDragHandler, IEndDragHandler
 {
+    #region Fields and Dependencies
     [SerializeField] private CubeColor _color;
-    private DragService _dragService;
+    private IDragService _dragService;
     private ScrollRect _parentScrollRect;
-    
-    // RESOLVE DRAG AND SCROLL CONFLICT
     private Vector2 _startDragPosition;
     private bool _isDragMode = false;
     private bool _isScrollMode = false;
-    private const float DIRECTION_THRESHOLD = 30f;
+    private const float DIRECTION_THRESHOLD = 20f;
+    #endregion
 
-    public CubeColor Color => _color;
-
+    #region Setup and Configuration
     [Inject]
-    public void Construct(DragService dragService)
+    public void Construct(IDragService dragService)
     {
         _dragService = dragService;
     }
@@ -33,7 +35,9 @@ public class InventoryCubeView : MonoBehaviour, IDraggableCube,
     {
         _parentScrollRect = parentScrollRect;
     }
+    #endregion
 
+    #region Drag and Drop
     public void OnBeginDrag(PointerEventData eventData)
     {
         InitializeDragState(eventData.position);
@@ -135,4 +139,5 @@ public class InventoryCubeView : MonoBehaviour, IDraggableCube,
         _isDragMode = false;
         _isScrollMode = false;
     }
+    #endregion
 } 
